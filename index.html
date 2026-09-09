@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // 语言初始化：localStorage > 系统语言（zh* → 中文，否则英文）。必须先于首帧执行。
+  (function () {
+    try {
+      var s = localStorage.getItem('cv-lang');
+      var l = (s === 'zh' || s === 'en') ? s
+            : (navigator.language && navigator.language.toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+      var root = document.documentElement;
+      root.setAttribute('data-lang', l);
+      root.setAttribute('lang', l === 'en' ? 'en' : 'zh-CN');
+    } catch (e) {}
+  })();
+</script>
+<title>CodeVault — macOS 菜单栏的高频信息中心</title>
+<meta name="description" content="把 GitHub token、API key、常用 prompt、命令片段、技术笔记收进一个菜单栏 App。⌘1 呼出快捷面板，3 秒搜索取用。本地优先，可选多设备同步。Put GitHub tokens, API keys, prompts, command snippets and notes in one menu-bar app. ⌘1 quick panel, local-first, optional multi-device sync.">
+<style>
+  /* ===== Design tokens（对齐 App 的 VaultWorkbench 体系） ===== */
+  :root {
+    --accent: #0A84FF;
+    --accent-weak: rgba(10,132,255,.12);
+    --code: #4C9FFE; --prompt: #A78BFA; --text: #34D3BE; --key: #F5A623;
+    --danger: #FF453A;
+    --radius-card: 14px; --radius-chip: 8px; --radius-pill: 999px;
+    --transition: 200ms ease;
+    --maxw: 1080px;
+  }
+  [data-theme="dark"] {
+    --bg: #1E1E22; --bg-elevated: #26262B; --surface: #2A2A30; --surface-deep: #202024;
+    --text-primary: #F5F5F7; --text-secondary: #98989F; --text-tertiary: #6C6C72;
+    --stroke: rgba(255,255,255,.08); --stroke-strong: rgba(255,255,255,.14);
+    --hover: rgba(255,255,255,.05);
+    --chip-bg: rgba(255,255,255,.06);
+    --glow: radial-gradient(closest-side, rgba(10,132,255,.16), transparent);
+    --shadow-panel: 0 24px 60px rgba(0,0,0,.5);
+  }
+  [data-theme="light"] {
+    --bg: #F5F5F7; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-deep: #FFFFFF;
+    --text-primary: #1D1D1F; --text-secondary: #6E6E73; --text-tertiary: #AEAEB2;
+    --stroke: rgba(0,0,0,.09); --stroke-strong: rgba(0,0,0,.16);
+    --hover: rgba(0,0,0,.045);
+    --chip-bg: rgba(0,0,0,.05);
+    --glow: radial-gradient(closest-side, rgba(10,132,255,.10), transparent);
+    --shadow-panel: 0 24px 60px rgba(0,0,0,.16);
+  }
+
+  /* ===== 语言显隐 ===== */
+  html[data-lang="zh"] [data-l="en"] { display: none !important; }
+  html[data-lang="en"] [data-l="zh"] { display: none !important; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    font-size: 15px; line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  kbd {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: .82em; line-height: 1;
+    background: var(--chip-bg); border: 1px solid var(--stroke-strong);
+    border-bottom-width: 2px; border-radius: 5px;
+    padding: 3px 6px; color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  /* ===== Nav ===== */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--stroke);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 14px; height: 56px; }
+  .logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; }
+  .logo-mark {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), #0060DF);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 800;
+  }
+  .nav-links { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  .nav-links a, .theme-btn, .lang-btn {
+    font-size: 13px; color: var(--text-secondary);
+    padding: 7px 12px; border-radius: var(--radius-chip);
+    transition: background var(--transition), color var(--transition);
+    cursor: pointer; border: 0; background: transparent; font-family: inherit;
+  }
+  .nav-links a:hover, .theme-btn:hover, .lang-btn:hover { background: var(--hover); color: var(--text-primary); }
+  .lang-btn { font-weight: 600; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: 600; font-family: inherit;
+    padding: 10px 20px; border-radius: var(--radius-pill);
+    border: 1px solid transparent; cursor: pointer;
+    transition: all var(--transition);
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--text-primary); border-color: var(--stroke-strong); }
+  .btn-ghost:hover { background: var(--hover); transform: translateY(-1px); }
+
+  /* ===== Hero ===== */
+  .hero { position: relative; overflow: hidden; padding: 88px 0 64px; text-align: center; }
+  .hero::before {
+    content: ""; position: absolute; inset: -40% 20% auto; height: 130%;
+    background: var(--glow); pointer-events: none; z-index: 0;
+  }
+  .hero > .wrap { position: relative; z-index: 1; }
+  .hero-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--text-secondary);
+    background: var(--chip-bg); border: 1px solid var(--stroke);
+    border-radius: var(--radius-pill); padding: 5px 14px; margin-bottom: 26px;
+  }
+  .hero-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
+  h1 {
+    font-size: clamp(34px, 5.4vw, 56px); line-height: 1.15;
+    font-weight: 800; letter-spacing: -.02em;
+  }
+  h1 .grad {
+    background: linear-gradient(120deg, var(--code), var(--prompt) 45%, var(--key));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero-sub {
+    max-width: 640px; margin: 20px auto 0;
+    font-size: 17px; color: var(--text-secondary); line-height: 1.75;
+  }
+  .hero-cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  /* ===== Quick panel mockup ===== */
+  .panel-stage { position: relative; z-index: 1; max-width: 640px; margin: 56px auto 0; }
+  .mock-panel {
+    background: var(--surface); border: 1px solid var(--stroke-strong);
+    border-radius: var(--radius-card); box-shadow: var(--shadow-panel);
+    overflow: hidden; text-align: left; font-size: 13px;
+  }
+  .mock-search {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; border-bottom: 1px solid var(--stroke);
+    color: var(--text-secondary);
+  }
+  .mock-search svg { flex-shrink: 0; }
+  .mock-query { color: var(--text-primary); font-weight: 600; }
+  .caret {
+    display: inline-block; width: 1.5px; height: 15px; margin-left: 1px;
+    background: var(--accent); vertical-align: -2px;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .mock-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: default;
+    transition: background var(--transition);
+  }
+  .mock-row + .mock-row { border-top: .5px solid var(--stroke); }
+  .mock-row.sel { background: var(--accent-weak); }
+  .type-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .t-code { background: var(--code); } .t-prompt { background: var(--prompt); }
+  .t-text { background: var(--text); } .t-key { background: var(--key); }
+  .mock-title { font-weight: 600; }
+  .mock-sub { color: var(--text-tertiary); font-size: 11.5px; margin-left: auto; }
+  .mock-hint {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 9px 16px; background: var(--surface-deep);
+    border-top: 1px solid var(--stroke);
+    color: var(--text-tertiary); font-size: 11.5px;
+  }
+  .mock-hint b { color: var(--text-secondary); font-weight: 600; }
+
+  /* ===== Section skeleton ===== */
+  section { padding: 72px 0; }
+  .sec-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+  .sec-kicker {
+    font-size: 12.5px; font-weight: 700; letter-spacing: .12em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
+  }
+  h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 800; letter-spacing: -.01em; line-height: 1.3; }
+  .sec-desc { color: var(--text-secondary); margin-top: 12px; }
+
+  /* ===== 3 steps ===== */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .step {
+    background: var(--bg-elevated); border: 1px solid var(--stroke);
+    border-radius: var(--radius-card); padding: 24px 22px;
+    transition: border-color var(--transition), transform var(--transition);
+  }
+  .step:hover { border-color: var(--stroke-strong); transform: translateY(-2px); }
+  .step-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-weak); color: var(--accent);
+    font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+  }
+  .step h3 { font-size: 16px; margin-bottom: 6px; }
+  .step p { font-size: 13.5px; color: var(--text-secondary); }
+
+  /* ===== Features ===== */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feat {
+    background: var(--bg-elevated); border: 1px solid var(--stroke);
+    border-radius: var(--radius-card); padding: 24px 22px;
+    transition: border-color var(--transition), transform var(--transition);
+  }
+  .feat:hover { border-color: var(--stroke-strong); transform: translateY(-2px); }
+  .feat-icon {
+    width: 36px; height: 36px; border-radius: 9px; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    background: var(--chip-bg); border: 1px solid var(--stroke);
+  }
+  .feat h3 { font-size: 15.5px; margin-bottom: 6px; }
+  .feat p { font-size: 13.5px; color: var(--text-secondary); }
+  .feat p code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: .86em;
+    background: var(--chip-bg); border-radius: 4px; padding: 1px 5px;
+  }
+
+  /* ===== Types ===== */
+  .types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .type-card {
+    position: relative; overflow: hidden;
+    background: var(--bg-elevated); border: 1px solid var(--stroke);
+    border-radius: var(--radius-card); padding: 22px 20px 20px;
+    transition: transform var(--transition), border-color var(--transition);
+  }
+  .type-card:hover { transform: translateY(-2px); }
+  .type-card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+  .tc-code::before { background: var(--code); } .tc-prompt::before { background: var(--prompt); }
+  .tc-text::before { background: var(--text); } .tc-key::before { background: var(--key); }
+  .type-name { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .type-name b { font-size: 15.5px; }
+  .type-name span { font-size: 11.5px; color: var(--text-tertiary); }
+  .tc-code .type-name b { color: var(--code); } .tc-prompt .type-name b { color: var(--prompt); }
+  .tc-text .type-name b { color: var(--text); } .tc-key .type-name b { color: var(--key); }
+  .type-card p { font-size: 13px; color: var(--text-secondary); }
+
+  /* ===== Sync band ===== */
+  .sync-band {
+    background: var(--bg-elevated); border: 1px solid var(--stroke);
+    border-radius: 18px; padding: 40px;
+    display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center;
+  }
+  .sync-band h3 { font-size: 20px; margin-bottom: 10px; }
+  .sync-band p { color: var(--text-secondary); font-size: 14px; }
+  .sync-points { margin-top: 18px; display: grid; gap: 10px; }
+  .sync-points li {
+    list-style: none; display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13.5px; color: var(--text-secondary);
+  }
+  .sync-points svg { flex-shrink: 0; margin-top: 4px; }
+  .sync-visual {
+    background: var(--surface-deep); border: 1px solid var(--stroke);
+    border-radius: var(--radius-card); padding: 22px; font-size: 12.5px;
+  }
+  .sync-visual .mono { font-size: 12px; }
+  .sv-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+  .sv-row + .sv-row { border-top: .5px solid var(--stroke); }
+  .sv-badge {
+    font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: var(--radius-pill); background: var(--chip-bg);
+    color: var(--text-secondary); flex-shrink: 0;
+  }
+  .sv-badge.on { background: var(--accent-weak); color: var(--accent); }
+
+  /* ===== FAQ ===== */
+  .faq { max-width: 720px; margin: 0 auto; display: grid; gap: 10px; }
+  details {
+    background: var(--bg-elevated); border: 1px solid var(--stroke);
+    border-radius: var(--radius-card); overflow: hidden;
+  }
+  details[open] { border-color: var(--stroke-strong); }
+  summary {
+    cursor: pointer; list-style: none; padding: 15px 20px;
+    font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "+"; font-size: 17px; color: var(--text-tertiary); font-weight: 400;
+    transition: transform var(--transition);
+  }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { padding: 0 20px 16px; font-size: 13.5px; color: var(--text-secondary); }
+  details p a { color: var(--accent); }
+  details p a:hover { text-decoration: underline; }
+
+  /* ===== CTA + footer ===== */
+  .final-cta { text-align: center; padding: 84px 0 96px; }
+  .final-cta h2 { margin-bottom: 14px; }
+  .final-cta p { color: var(--text-secondary); margin-bottom: 28px; }
+  footer {
+    border-top: 1px solid var(--stroke); padding: 28px 0 36px;
+    color: var(--text-tertiary); font-size: 12.5px;
+  }
+  .foot-grid { display: flex; gap: 28px; flex-wrap: wrap; align-items: center; }
+  .foot-grid .grow { flex: 1; }
+  .foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
+  .foot-links a:hover { color: var(--text-primary); }
+
+  @media (max-width: 860px) {
+    .features, .types { grid-template-columns: repeat(2, 1fr); }
+    .steps { grid-template-columns: 1fr; }
+    .sync-band { grid-template-columns: 1fr; padding: 28px; }
+  }
+  @media (max-width: 540px) {
+    .types { grid-template-columns: 1fr; }
+    .hero { padding-top: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== Nav ===================== -->
+<nav>
+  <div class="wrap nav-inner">
+    <a class="logo" href="#">
+      <span class="logo-mark">V</span>CodeVault
+    </a>
+    <div class="nav-links">
+      <a href="#features" data-l="zh">功能</a>
+      <a href="#types" data-l="zh">四种类型</a>
+      <a href="#sync" data-l="zh">同步</a>
+      <a href="#features" data-l="en">Features</a>
+      <a href="#types" data-l="en">Types</a>
+      <a href="#sync" data-l="en">Sync</a>
+      <a href="docs.html" data-l="zh">使用指南</a>
+      <a href="docs.html" data-l="en">User Guide</a>
+      <a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">GitHub</a>
+      <button class="lang-btn" id="langToggle" title="Switch language" aria-label="Switch language"><span data-l="zh">EN</span><span data-l="en">中文</span></button>
+      <button class="theme-btn" id="themeToggle" title="切换主题" aria-label="切换主题">◐</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===================== Hero ===================== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-pill"><span class="dot"></span><span data-l="zh">macOS 菜单栏 · 本地优先 · 可自部署同步</span><span data-l="en">macOS menu bar · Local-first · Self-hostable sync</span></div>
+    <h1><span data-l="zh">你的高频信息，<br><span class="grad">3 秒取用</span></span><span data-l="en">The info you reach for daily,<br><span class="grad">3 seconds away</span></span></h1>
+    <p class="hero-sub" data-l="zh">
+      GitHub token、API key、常用 prompt、命令片段、技术笔记——
+      全部收进一个菜单栏 App。<kbd>⌘</kbd><kbd>1</kbd> 呼出快捷面板，
+      模糊搜索，回车即取。不切换应用，不打断心流。
+    </p>
+    <p class="hero-sub" data-l="en">
+      GitHub tokens, API keys, go-to prompts, command snippets, tech notes —
+      everything lives in one menu-bar app. Summon the quick panel with
+      <kbd>⌘</kbd><kbd>1</kbd>, fuzzy-search, hit Return.
+      No app switching, no broken flow.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/pekaboo/CodeVault/releases" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a.5.5 0 0 1 .5.5v9.79l2.9-2.9a.5.5 0 0 1 .7.71l-3.75 3.75a.5.5 0 0 1-.7 0L3.9 9.6a.5.5 0 0 1 .71-.7l2.9 2.9V2a.5.5 0 0 1 .5-.5zM2.5 13.5a.5.5 0 0 1 0-1h11a.5.5 0 0 1 0 1h-11z"/></svg>
+        <span data-l="zh">下载 for macOS</span><span data-l="en">Download for macOS</span>
+      </a>
+      <a class="btn btn-ghost" href="docs.html"><span data-l="zh">开始使用</span><span data-l="en">Get started</span></a>
+    </div>
+
+    <!-- 快捷面板模拟 -->
+    <div class="panel-stage" aria-hidden="true">
+      <div class="mock-panel">
+        <div class="mock-search">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.6"/><path d="m10.6 10.6 3 3"/></svg>
+          <span><span class="mock-query mono">pg_conn<span class="caret"></span></span></span>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--text-tertiary)"><span data-l="zh">搜索标题 / 语言 / 标签</span><span data-l="en">Search title / language / tag</span></span>
+        </div>
+        <div class="mock-row sel">
+          <span class="type-dot t-key"></span>
+          <span class="mock-title mono">pg_conn_prod</span>
+          <span class="mock-sub mono">postgresql://…</span>
+        </div>
+        <div class="mock-row">
+          <span class="type-dot t-code"></span>
+          <span class="mock-title mono">pg_backup.sh</span>
+          <span class="mock-sub">Shell</span>
+        </div>
+        <div class="mock-row">
+          <span class="type-dot t-text"></span>
+          <span class="mock-title"><span data-l="zh">PG 连接排错笔记</span><span data-l="en">PG connection troubleshooting</span></span>
+          <span class="mock-sub"><span data-l="zh">笔记 · #db</span><span data-l="en">Text · #db</span></span>
+        </div>
+        <div class="mock-hint">
+          <span><b>↑↓</b> <span data-l="zh">切换</span><span data-l="en">Navigate</span></span>
+          <span><b>↩</b> <span data-l="zh">复制</span><span data-l="en">Copy</span></span>
+          <span><b><span data-l="zh">双击</span><span data-l="en">Double-click</span></b> <span data-l="zh">写入输入框</span><span data-l="en">type into field</span></span>
+          <span style="margin-left:auto"><b>esc</b> <span data-l="zh">关闭</span><span data-l="en">Close</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== 3 steps ===================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker" data-l="zh">Workflow</div>
+      <div class="sec-kicker" data-l="en">Workflow</div>
+      <h2><span data-l="zh">从想到用，只要三步</span><span data-l="en">From thought to paste in three steps</span></h2>
+      <p class="sec-desc" data-l="zh">每天重复 30+ 次的取用动作，压缩到肌肉记忆级别。</p>
+      <p class="sec-desc" data-l="en">The retrieval you repeat 30+ times a day, compressed into muscle memory.</p>
+    </div>
+    <div class="steps" data-l="zh">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>呼出面板</h3>
+        <p>在任意应用中按下 <kbd>⌘</kbd><kbd>1</kbd>，浮动面板即刻出现在光标所在的屏幕上——包括全屏应用。快捷键可在设置中自定义。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>敲两三个字母</h3>
+        <p>按标题、语言、标签模糊搜索，最近使用的条目自动靠前，常用内容往往还在打字时就已置顶。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>回车，粘贴</h3>
+        <p><kbd>↩</kbd> 复制并关闭面板，回到原应用直接 <kbd>⌘</kbd><kbd>V</kbd>；开启「双击写入」后，双击条目可直接写回原应用的光标处。</p>
+      </div>
+    </div>
+    <div class="steps" data-l="en">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Summon the panel</h3>
+        <p>Press <kbd>⌘</kbd><kbd>1</kbd> from any app — the floating panel appears on the screen your pointer is on, fullscreen apps included. The hotkey is customizable.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Type two or three letters</h3>
+        <p>Fuzzy-search by title, language, or tag. Recently used items float up — your target is often on top before you finish typing.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Return. Paste.</h3>
+        <p><kbd>↩</kbd> copies and closes the panel; <kbd>⌘</kbd><kbd>V</kbd> back in your app. With “double-click typing” on, a double-click writes straight into the focused field.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Features ===================== -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Features</div>
+      <h2><span data-l="zh">为「取用」而生，不止是收藏</span><span data-l="en">Built for retrieval, not just collecting</span></h2>
+      <p class="sec-desc" data-l="zh">收藏类 App 的问题是存了就忘。CodeVault 的一切设计都围绕「存得快、找得到、用得上」。</p>
+      <p class="sec-desc" data-l="en">Collecting apps fail because you file and forget. Everything in CodeVault is designed around store fast, find instantly, use immediately.</p>
+    </div>
+    <div class="features" data-l="zh">
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 6.5a1.8 1.8 0 1 0-1.6-2.8A1.8 1.8 0 0 1 4.5 6.5zM11.5 6.5a1.8 1.8 0 1 0 1.6-2.8 1.8 1.8 0 0 1-1.6 2.8zM4.5 6.5V8c0 3 .9 4.2 3.5 4.2S11.5 11 11.5 8V6.5"/></svg></div>
+        <h3>全局快捷面板</h3>
+        <p>不切应用的浮动面板，支持全屏覆盖。键盘优先操作：<code>↑↓</code> 导航、<code>⌘+数字</code> 直选、<code>esc</code> 即走。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M2 6h12M6 6v8"/></svg></div>
+        <h3>自定义布局</h3>
+        <p>把最常用的片段拖进「容器」，自由排布与缩放，打开面板即是你的专属工作台，而不是一串搜索结果。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.6" y="1.8" width="7" height="9" rx="1.5"/><path d="M5 12.8v1.4h7V5.8h-1.6M4.8 5h2.6M4.8 7.5h2.6"/></svg></div>
+        <h3>剪贴板历史</h3>
+        <p>内置剪贴板管理：自动记录复制历史，支持置顶、标签、来源应用，历史中的内容一键存入片段库。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 9.6v1.8"/></svg></div>
+        <h3>密钥本地加密</h3>
+        <p>密钥类条目敏感字段使用 AES-GCM 加密存储，登录凭据只进 Keychain。不登录任何账号也能完整使用。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V6h-3.5"/></svg></div>
+        <h3>多设备同步</h3>
+        <p>填入「服务地址 + API Token」即开启同步：每 5 分钟自动全量合并，新者胜出，删除有墓碑不会复活。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.8 8 2.5l5.5 4.3V13a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V6.8Z"/></svg></div>
+        <h3>自部署友好</h3>
+        <p>同步后端是一个零依赖的 Cloudflare Worker，10 分钟部署到你自己的域名，数据不出你的掌控。</p>
+      </div>
+    </div>
+    <div class="features" data-l="en">
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 6.5a1.8 1.8 0 1 0-1.6-2.8A1.8 1.8 0 0 1 4.5 6.5zM11.5 6.5a1.8 1.8 0 1 0 1.6-2.8 1.8 1.8 0 0 1-1.6 2.8zM4.5 6.5V8c0 3 .9 4.2 3.5 4.2S11.5 11 11.5 8V6.5"/></svg></div>
+        <h3>Global quick panel</h3>
+        <p>A floating panel over any app, fullscreen included. Keyboard-first: <code>↑↓</code> to navigate, <code>⌘+number</code> to jump, <code>esc</code> to dismiss.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2.5"/><path d="M2 6h12M6 6v8"/></svg></div>
+        <h3>Custom layouts</h3>
+        <p>Drag your most-used snippets into containers and arrange them freely. Opening the panel reveals your personal workbench, not a list of search results.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.6" y="1.8" width="7" height="9" rx="1.5"/><path d="M5 12.8v1.4h7V5.8h-1.6M4.8 5h2.6M4.8 7.5h2.6"/></svg></div>
+        <h3>Clipboard history</h3>
+        <p>A built-in clipboard manager: automatic copy history with pinning, tags, and source-app icons. Send any history item straight to your vault.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 9.6v1.8"/></svg></div>
+        <h3>Local key encryption</h3>
+        <p>Sensitive fields in Key entries are AES-GCM encrypted at rest; credentials live only in Keychain. Fully functional with no account.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V6h-3.5"/></svg></div>
+        <h3>Multi-device sync</h3>
+        <p>Enter a server address + API token to enable sync: full merge every 5 minutes, newest-wins conflicts, tombstoned deletes that never resurrect.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.8 8 2.5l5.5 4.3V13a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V6.8Z"/></svg></div>
+        <h3>Self-hosting friendly</h3>
+        <p>The sync backend is a zero-dependency Cloudflare Worker — deploy it to your own domain in 10 minutes. Your data never leaves your control.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Types ===================== -->
+<section id="types">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Four Types</div>
+      <h2><span data-l="zh">四类信息，统一收纳</span><span data-l="en">Four kinds of info, one home</span></h2>
+      <p class="sec-desc" data-l="zh">密码管理器不管你的 prompt，笔记 App 藏不住你的 token。CodeVault 按技术工作者的真实资产分类。</p>
+      <p class="sec-desc" data-l="en">Password managers ignore your prompts; notes apps bury your tokens. CodeVault sorts information the way technical workers actually own it.</p>
+    </div>
+    <div class="types" data-l="zh">
+      <div class="type-card tc-code">
+        <div class="type-name"><b>代码</b><span>Code</span></div>
+        <p>函数片段、SQL、配置模板。按语言高亮，取用即粘贴。</p>
+      </div>
+      <div class="type-card tc-prompt">
+        <div class="type-name"><b>提示词</b><span>Prompt</span></div>
+        <p>打磨好的 LLM 提示词、邮件模板、回复话术，随取随改。</p>
+      </div>
+      <div class="type-card tc-text">
+        <div class="type-name"><b>笔记</b><span>Text</span></div>
+        <p>排错记录、环境说明、速查清单。技术笔记就该离手边近一点。</p>
+      </div>
+      <div class="type-card tc-key">
+        <div class="type-name"><b>密钥</b><span>Key</span></div>
+        <p>API token、连接串、内网地址。AES-GCM 加密存储，掩码显示。</p>
+      </div>
+    </div>
+    <div class="types" data-l="en">
+      <div class="type-card tc-code">
+        <div class="type-name"><b>Code</b><span>代码</span></div>
+        <p>Function snippets, SQL, config templates. Language-aware highlighting, paste-ready.</p>
+      </div>
+      <div class="type-card tc-prompt">
+        <div class="type-name"><b>Prompt</b><span>提示词</span></div>
+        <p>Polished LLM prompts, email templates, canned replies. Grab, tweak, send.</p>
+      </div>
+      <div class="type-card tc-text">
+        <div class="type-name"><b>Text</b><span>笔记</span></div>
+        <p>Troubleshooting logs, environment notes, cheat sheets. Keep the why close at hand.</p>
+      </div>
+      <div class="type-card tc-key">
+        <div class="type-name"><b>Key</b><span>密钥</span></div>
+        <p>API tokens, connection strings, internal endpoints. AES-GCM encrypted, masked display.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Sync ===================== -->
+<section id="sync">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Sync &amp; Self-hosting</div>
+      <h2><span data-l="zh">数据在你手里</span><span data-l="en">Your data stays yours</span></h2>
+      <p class="sec-desc" data-l="zh">本地优先：不登录就是纯本地应用。需要多设备时，同步到官方服务或你自己的 Worker。</p>
+      <p class="sec-desc" data-l="en">Local-first: with no sign-in it's a purely local app. When you need multiple machines, sync via the official service or your own Worker.</p>
+    </div>
+    <div class="sync-band" data-l="zh">
+      <div>
+        <h3>本地优先，同步可选</h3>
+        <p>所有数据先落在本机。登录只是「打开一个同步开关」——服务地址和 Token 都由你填写，随时可换、可撤。</p>
+        <ul class="sync-points">
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>每 5 分钟自动同步 + 手动立即同步</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>冲突按更新时间「新者胜出」，规则透明可预期</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>近 7 天的删除通过墓碑传播，不会莫名复活</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>设置内提供本地备份，换机迁移不依赖云端</li>
+        </ul>
+      </div>
+      <div class="sync-visual" aria-hidden="true">
+        <div class="sv-row"><span class="sv-badge on">本地</span><span>所有条目、剪贴板历史、标签</span></div>
+        <div class="sv-row"><span class="sv-badge">Keychain</span><span>API Token、登录凭据</span></div>
+        <div class="sv-row"><span class="sv-badge on">同步</span><span class="mono">GET /api/v1/vault/snippets</span></div>
+        <div class="sv-row"><span class="sv-badge on">合并</span><span>last-write-wins + 删除墓碑</span></div>
+        <div class="sv-row"><span class="sv-badge">自部署</span><span>sync-worker · Cloudflare KV</span></div>
+      </div>
+    </div>
+    <div class="sync-band" data-l="en">
+      <div>
+        <h3>Local-first, sync optional</h3>
+        <p>Everything lands on your machine first. Signing in merely flips a sync switch — the server address and token are yours to set, change, or revoke.</p>
+        <ul class="sync-points">
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>Auto-sync every 5 minutes + manual sync on demand</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>Conflicts resolve by newest update — transparent, predictable</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>Deletes within 7 days carry tombstones — nothing resurrects</li>
+          <li><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text)" stroke-width="2"><path d="m3 8.5 3.2 3.2L13 5"/></svg>Local backup built into Settings — migrate without the cloud</li>
+        </ul>
+      </div>
+      <div class="sync-visual" aria-hidden="true">
+        <div class="sv-row"><span class="sv-badge on">Local</span><span>All items, clipboard history, tags</span></div>
+        <div class="sv-row"><span class="sv-badge">Keychain</span><span>API tokens &amp; credentials</span></div>
+        <div class="sv-row"><span class="sv-badge on">Sync</span><span class="mono">GET /api/v1/vault/snippets</span></div>
+        <div class="sv-row"><span class="sv-badge on">Merge</span><span>last-write-wins + delete tombstones</span></div>
+        <div class="sv-row"><span class="sv-badge">Self-host</span><span>sync-worker · Cloudflare KV</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FAQ ===================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">FAQ</div>
+      <h2><span data-l="zh">常见问题</span><span data-l="en">Frequently asked</span></h2>
+    </div>
+    <div class="faq" data-l="zh">
+      <details>
+        <summary>CodeVault 和 Raycast / Alfred 的片段功能有什么区别？</summary>
+        <p>启动器把片段当作附属功能，CodeVault 把「信息速取」做成了核心体验：类型体系、标签、容器布局、密钥加密、取用行为都是围绕高频取用专门设计的，且完全本地优先、无插件依赖。</p>
+      </details>
+      <details>
+        <summary>我的 token 存在里面安全吗？</summary>
+        <p>密钥类条目的敏感字段使用 AES-GCM 本地加密，登录凭据只存 Keychain；同步数据仅在你登录后发送到你指定的服务端（可以是自部署）。建议生产密钥定期轮换，并配合系统 FileVault 使用。</p>
+      </details>
+      <details>
+        <summary>需要辅助功能权限吗？</summary>
+        <p>全局快捷键与「写入输入框」需要辅助功能（Accessibility）权限。首次启动的引导页会引导你授权，也可稍后在 系统设置 → 隐私与安全性 中开启。</p>
+      </details>
+      <details>
+        <summary>可以不同步、纯离线使用吗？</summary>
+        <p>可以。不登录即是纯本地应用，所有功能（快捷面板、剪贴板历史、加密存储）都可离线使用，另支持本地备份导出。</p>
+      </details>
+      <details>
+        <summary>支持 Windows / Linux 吗？</summary>
+        <p>不支持。CodeVault 是 macOS 专属应用，深度依赖 macOS 的全局快捷键、辅助功能与菜单栏体验。</p>
+      </details>
+      <details>
+        <summary>更多文档在哪里？</summary>
+        <p>完整教程见 <a href="docs.html">使用指南</a>（安装、快捷面板、同步、自部署、设置参考），常见问题见 <a href="faq.html">FAQ</a>。</p>
+      </details>
+    </div>
+    <div class="faq" data-l="en">
+      <details>
+        <summary>How is this different from Raycast or Alfred snippets?</summary>
+        <p>Launchers treat snippets as a side feature. CodeVault makes information retrieval the core experience — type system, tags, container layouts, key encryption, and paste behaviors are all purpose-built for high-frequency retrieval, fully local-first with no plugin dependency.</p>
+      </details>
+      <details>
+        <summary>Is it safe to keep my tokens in CodeVault?</summary>
+        <p>Sensitive fields in Key entries are AES-GCM encrypted at rest, and credentials live only in the Keychain. Synced data only goes to the server you explicitly configure — which can be your own. Rotate production secrets regularly and use FileVault.</p>
+      </details>
+      <details>
+        <summary>Does it need Accessibility permission?</summary>
+        <p>Global hotkeys and “type into field” need the Accessibility permission. First-run onboarding walks you through granting it; you can also enable it later under System Settings → Privacy &amp; Security.</p>
+      </details>
+      <details>
+        <summary>Can I use it fully offline?</summary>
+        <p>Yes. Without signing in it's a purely local app — quick panel, clipboard history, and encrypted storage all work offline, and local backup export is built in.</p>
+      </details>
+      <details>
+        <summary>Is there a Windows / Linux version?</summary>
+        <p>No. CodeVault is a macOS-only menu-bar app, built deeply on macOS global hotkeys, Accessibility, and the menu-bar experience.</p>
+      </details>
+      <details>
+        <summary>Where are the full docs?</summary>
+        <p>See the <a href="docs.html">User Guide</a> (install, quick panel, sync, self-hosting, settings reference) and the <a href="faq.html">FAQ</a>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Final CTA ===================== -->
+<div class="final-cta">
+  <div class="wrap">
+    <h2><span data-l="zh">把散落各处的高频信息，收进一个面板</span><span data-l="en">Gather the info you reach for daily — into one panel</span></h2>
+    <p><span data-l="zh">零第三方依赖 · 中英双语 · 本地优先</span><span data-l="en">Zero third-party dependencies · Bilingual · Local-first</span></p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/pekaboo/CodeVault/releases" target="_blank" rel="noopener"><span data-l="zh">立即下载</span><span data-l="en">Download now</span></a>
+      <a class="btn btn-ghost" href="docs.html"><span data-l="zh">阅读使用指南</span><span data-l="en">Read the guide</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Footer ===================== -->
+<footer>
+  <div class="wrap foot-grid">
+    <span><span data-l="zh">CodeVault — macOS 菜单栏的高频信息中心</span><span data-l="en">CodeVault — your high-frequency info hub for the macOS menu bar</span></span>
+    <div class="foot-links">
+      <a href="docs.html" data-l="zh">使用指南</a>
+      <a href="docs.html" data-l="en">User Guide</a>
+      <a href="docs.html#self-hosting" data-l="zh">自部署</a>
+      <a href="docs.html#self-hosting-en" data-l="en">Self-hosting</a>
+      <a href="faq.html" data-l="zh">常见问题</a>
+      <a href="faq.html" data-l="en">FAQ</a>
+      <a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/pekaboo/CodeVault/releases" target="_blank" rel="noopener">Releases</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  var TITLES = {
+    zh: 'CodeVault — macOS 菜单栏的高频信息中心',
+    en: 'CodeVault — Your high-frequency info hub in the macOS menu bar'
+  };
+  // 语言切换
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('langToggle');
+    function apply(l) {
+      root.setAttribute('data-lang', l);
+      root.setAttribute('lang', l === 'en' ? 'en' : 'zh-CN');
+      document.title = TITLES[l];
+    }
+    apply(root.getAttribute('data-lang') || 'zh');
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-lang') === 'zh' ? 'en' : 'zh';
+      apply(next);
+      try { localStorage.setItem('cv-lang', next); } catch (e) {}
+    });
+  })();
+
+  // 主题切换（跟随记忆，默认暗色）
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggle');
+    var saved = null;
+    try { saved = localStorage.getItem('cv-theme'); } catch (e) {}
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('cv-theme', next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1E1E22">
+<script>
+  // 语言初始化：localStorage > 系统语言（zh* → 中文，否则英文）。必须先于首帧执行。
+  (function () {
+    try {
+      var s = localStorage.getItem('cv-lang');
+      var l = (s === 'zh' || s === 'en') ? s
+            : (navigator.language && navigator.language.toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+      var root = document.documentElement;
+      root.setAttribute('data-lang', l);
+      root.setAttribute('lang', l === 'en' ? 'en' : 'zh-CN');
+    } catch (e) {}
+  })();
+</script>
+<title>CodeVault FAQ — 常见问题</title>
+<meta name="description" content="CodeVault 常见问题：与 Raycast/1Password 的区别、安全与加密、同步规则、故障排查。CodeVault FAQ: differences vs Raycast/1Password, security & encryption, sync rules, troubleshooting.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230A84FF'/><text x='50' y='72' font-size='62' font-family='-apple-system,sans-serif' font-weight='800' fill='white' text-anchor='middle'>V</text></svg>">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root { --accent: #0A84FF; --accent-dim: rgba(10,132,255,.12); }
+  [data-theme="dark"] {
+    --bg: #1E1E22; --card: rgba(255,255,255,.02);
+    --text-primary: #F5F5F7; --text-secondary: rgba(245,245,247,.68); --text-tertiary: rgba(245,245,247,.45);
+    --border: rgba(255,255,255,.08); --border-light: rgba(255,255,255,.16);
+    --header-bg: rgba(30,30,34,.85); --hover: rgba(255,255,255,.05);
+  }
+  [data-theme="light"] {
+    --bg: #F5F5F7; --card: #FFFFFF;
+    --text-primary: #1D1D1F; --text-secondary: rgba(29,29,31,.7); --text-tertiary: rgba(29,29,31,.48);
+    --border: rgba(0,0,0,.09); --border-light: rgba(0,0,0,.16);
+    --header-bg: rgba(245,245,247,.85); --hover: rgba(0,0,0,.045);
+  }
+
+  /* ===== 语言显隐 ===== */
+  html[data-lang="zh"] [data-l="en"] { display: none !important; }
+  html[data-lang="en"] [data-l="zh"] { display: none !important; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    line-height: 1.7; font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  kbd {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; color: var(--text-primary); white-space: nowrap;
+    background: var(--hover); border: 1px solid var(--border-light);
+    border-bottom-width: 2px; border-radius: 5px; padding: 2px 6px;
+  }
+  code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: .88em; background: var(--hover);
+    padding: 2px 7px; border-radius: 5px;
+  }
+  strong { color: var(--text-primary); }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 32px;
+    background: var(--header-bg);
+    backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; color: inherit; }
+  .brand:hover { text-decoration: none; }
+  .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #0060DF); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+  }
+  .brand-name { font-weight: 700; font-size: 15px; }
+  .header-crumb { font-size: 13px; color: var(--text-tertiary); }
+  .header-links { display: flex; align-items: center; gap: 16px; }
+  .header-links a { color: var(--text-secondary); font-size: 13.5px; font-weight: 500; }
+  .header-links a:hover { color: var(--text-primary); text-decoration: none; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff !important;
+    padding: 8px 17px; border-radius: 10px;
+    font-size: 13.5px; font-weight: 600;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(10,132,255,.35); text-decoration: none; }
+  .theme-btn, .lang-btn { border: 0; background: transparent; cursor: pointer; color: var(--text-secondary); font-size: 15px; padding: 4px 6px; }
+  .theme-btn:hover, .lang-btn:hover { color: var(--text-primary); }
+  .lang-btn { font-size: 13.5px; font-weight: 600; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 128px 24px 80px; }
+  .page-head { margin-bottom: 48px; }
+  .page-head .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 14px;
+  }
+  .page-head h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; line-height: 1.18; margin-bottom: 14px; letter-spacing: -.01em; }
+  .page-head p { color: var(--text-secondary); font-size: 16px; max-width: 620px; }
+
+  .faq-cat { margin-bottom: 44px; }
+  .faq-cat > h2 {
+    font-size: 18px; font-weight: 800; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .cat-chip {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    background: var(--accent-dim); color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .cat-chip svg { display: block; }
+
+  details.faqitem {
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--card); margin-bottom: 10px; overflow: hidden;
+  }
+  details.faqitem summary {
+    cursor: pointer; padding: 15px 18px; font-weight: 600; font-size: 14.5px;
+    list-style: none; display: flex; justify-content: space-between; gap: 12px;
+    color: var(--text-primary);
+  }
+  details.faqitem summary::-webkit-details-marker { display: none; }
+  details.faqitem summary::after { content: '+'; color: var(--text-tertiary); font-weight: 700; font-size: 16px; }
+  details.faqitem[open] summary::after { content: '−'; color: var(--accent); }
+  details.faqitem .a { padding: 0 18px 16px; font-size: 14px; color: var(--text-secondary); }
+  details.faqitem .a p { margin-bottom: 10px; }
+  details.faqitem .a :last-child { margin-bottom: 0; }
+
+  .still-stuck {
+    text-align: center; border: 1px dashed var(--border-light); border-radius: 18px;
+    padding: 32px 24px; margin-top: 56px;
+  }
+  .still-stuck h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+  .still-stuck p { color: var(--text-tertiary); font-size: 14.5px; margin-bottom: 20px; }
+  .still-stuck .btn-primary { border: 0; }
+
+  .footer { border-top: 1px solid var(--border); padding: 28px 32px; text-align: center; color: var(--text-tertiary); font-size: 13px; }
+  .footer a { color: var(--text-secondary); }
+
+  @media (max-width: 640px) {
+    .header { padding: 12px 20px; }
+    .header-crumb { display: none; }
+    main { padding: 104px 18px 70px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a class="brand" href="index.html">
+    <div class="logo">V</div>
+    <span class="brand-name">CodeVault</span>
+    <span class="header-crumb"><span data-l="zh">/ FAQ</span><span data-l="en">/ FAQ</span></span>
+  </a>
+  <nav class="header-links">
+    <a href="index.html" data-l="zh">首页</a>
+    <a href="index.html" data-l="en">Home</a>
+    <a href="docs.html" data-l="zh">使用指南</a>
+    <a href="docs.html" data-l="en">User Guide</a>
+    <button class="lang-btn" id="langToggle" title="Switch language" aria-label="Switch language"><span data-l="zh">EN</span><span data-l="en">中文</span></button>
+    <button class="theme-btn" id="themeToggle" title="切换主题" aria-label="切换主题">◐</button>
+    <a class="btn-primary" href="https://github.com/pekaboo/CodeVault/releases" target="_blank" rel="noopener"><span data-l="zh">下载</span><span data-l="en">Download</span></a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-head" data-l="zh">
+    <span class="eyebrow">常见问题</span>
+    <h1>你可能想问的，<br>答案都在这。</h1>
+    <p>基础、快捷键、安全、同步——直接的答案。分步教程请看<a href="docs.html">使用指南</a>。</p>
+  </div>
+  <div class="page-head" data-l="en">
+    <span class="eyebrow">Frequently asked questions</span>
+    <h1>Whatever you're about to ask,<br>it's probably here.</h1>
+    <p>Basics, hotkeys, security, sync — straight answers. For step-by-step guides see the <a href="docs.html">User Guide</a>.</p>
+  </div>
+
+  <!-- ================= 中文 ================= -->
+  <div data-l="zh">
+
+  <section class="faq-cat" id="general">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8 13.5 4.6v3.1c0 3.3-2.2 5.4-5.5 6.5-3.3-1.1-5.5-3.2-5.5-6.5V4.6L8 1.8Z"/><path d="m5.8 7.8 1.7 1.7 3-3.2"/></svg></span>基础</h2>
+
+    <details class="faqitem" open>
+      <summary>CodeVault 是免费的吗？</summary>
+      <div class="a"><p>应用开源，代码托管在 <a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">GitHub</a>。同步是可选功能：用官方服务或自己部署 Cloudflare Worker（免费额度够个人用）都可以。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>支持 Windows / Linux / iOS 吗？</summary>
+      <div class="a"><p>不支持。CodeVault 是 macOS 专属的菜单栏应用（macOS 15+），深度依赖 macOS 的全局快捷键与辅助功能体系。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>和 Raycast / Alfred 的片段功能有什么区别？</summary>
+      <div class="a"><p>启动器把片段当附属功能；CodeVault 把「信息速取」做核心：类型体系、标签、容器布局、密钥加密、双击写入都是为此专门设计，且本地优先、无插件依赖。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>和 1Password / Bitwarden 有什么区别？</summary>
+      <div class="a"><p>密码管理器只管凭证。CodeVault 统一收纳四类高频信息（代码 / 提示词 / 笔记 / 密钥），密钥类做本地加密，但它是「取用工具」不是「密码管理器」——浏览器自动填充等能力请继续用专业工具。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>适合什么人用？</summary>
+      <div class="a"><p>每天复制粘贴 30+ 次的电脑工作者：独立开发者、后端 / 前端 / DevOps / 安全工程师——频繁取用 token 和连接串、反复使用 prompt 模板、快速调用 shell / SQL 命令的人。</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="panel">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 6.5a1.8 1.8 0 1 0-1.6-2.8A1.8 1.8 0 0 1 4.5 6.5zM11.5 6.5a1.8 1.8 0 1 0 1.6-2.8 1.8 1.8 0 0 1-1.6 2.8zM4.5 6.5V8c0 3 .9 4.2 3.5 4.2S11.5 11 11.5 8V6.5"/></svg></span>快捷键与面板</h2>
+
+    <details class="faqitem" open>
+      <summary>按 ⌘1 没反应。</summary>
+      <div class="a"><p>依次检查：① 辅助功能权限已授予（设置页可见状态）；② 快捷键没有被其他 App 占用（录制时会提示冲突）；③ 权限刚授予时需要重启一次 CodeVault。详细步骤见<a href="docs.html#troubleshooting">故障排查</a>。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>全屏应用里能呼出面板吗？</summary>
+      <div class="a"><p>可以。面板运行在高窗口层级并支持全屏辅助空间，多显示器下出现在当前活跃屏幕。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>双击条目为什么有时是复制、有时直接写入？</summary>
+      <div class="a"><p>「双击写入」开启时，只有打开面板前有可编辑文本框焦点才会写入；否则退化为复制。可在设置中关闭该行为。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>快捷键可以改吗？</summary>
+      <div class="a"><p>可以，设置中点录制即可更换，支持冲突检测。<kbd>⌘</kbd><kbd>⌥</kbd><kbd>K</kbd> 在部分键盘布局下与系统「切换键盘布局」冲突，建议换成 <kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd> 等组合。</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="security">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 9.6v1.8"/></svg></span>数据与安全</h2>
+
+    <details class="faqitem" open>
+      <summary>我的 token 存在里面安全吗？</summary>
+      <div class="a"><p>密钥类条目的敏感字段 AES-GCM 本地加密，登录凭据只进 Keychain。但请注意：加密保护的是静态存储，不能替代密钥轮换；建议配合系统 FileVault。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>不登录、纯离线能用吗？</summary>
+      <div class="a"><p>可以。所有本地功能（片段库、快捷面板、剪贴板历史、加密）不依赖任何账号；本地备份随时可导出。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>同步的数据会经过谁？</summary>
+      <div class="a"><p>只经过你在登录时填写的那个服务端——官方服务或你自部署的 Cloudflare Worker。<a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">代码开源</a>可审计。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>换新 Mac 怎么迁移？</summary>
+      <div class="a"><p>两条路：① 登录同一同步服务，首次同步自动拉回全集；② 在旧机器做本地备份，新机器导入。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>剪贴板历史会被上传吗？</summary>
+      <div class="a"><p>默认不会。剪贴板 iCloud 同步是独立开关，需你显式开启（仅经你自己的 iCloud）。片段库同步不包含剪贴板历史。</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="sync">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V6h-3.5"/></svg></span>同步</h2>
+
+    <details class="faqitem" open>
+      <summary>两台设备都改了同一条目怎么办？</summary>
+      <div class="a"><p>按更新时间「新者胜出」，旧版本被覆盖。规则透明，无手动合并界面。详见<a href="docs.html#sync">同步章节</a>。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>删除的条目会不会在另一台设备复活？</summary>
+      <div class="a"><p>不会。近 7 天内的删除带墓碑记录，同步时删除优先。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Token 泄露了怎么办？</summary>
+      <div class="a"><p>自部署：运行 <code>wrangler secret put SYNC_TOKEN</code> 重设（旧 Token 立即失效，各设备换填新值）。官方服务：门户吊销该 Token 并重新生成。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>同步上限是多少？</summary>
+      <div class="a"><p>单应用数据集 24MiB（Workers KV 单值限制）。纯文本场景（几千条片段）远达不到。</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>怎么自己搭一个同步服务？</summary>
+      <div class="a"><p>同步后端是零依赖的 Cloudflare Worker，六条命令部署完成，见<a href="docs.html#self-hosting">自部署指南</a>。</p></div>
+    </details>
+  </section>
+
+  <div class="still-stuck">
+    <h3>还是没找到答案？</h3>
+    <p>描述你的系统版本、CodeVault 版本和复现步骤，到 GitHub Issues 提问。</p>
+    <a class="btn-primary" href="https://github.com/pekaboo/CodeVault/issues" target="_blank" rel="noopener">提交 Issue</a>
+  </div>
+
+  </div>
+
+  <!-- ================= ENGLISH ================= -->
+  <div data-l="en">
+
+  <section class="faq-cat" id="general-en">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8 13.5 4.6v3.1c0 3.3-2.2 5.4-5.5 6.5-3.3-1.1-5.5-3.2-5.5-6.5V4.6L8 1.8Z"/><path d="m5.8 7.8 1.7 1.7 3-3.2"/></svg></span>Basics</h2>
+
+    <details class="faqitem" open>
+      <summary>Is CodeVault free?</summary>
+      <div class="a"><p>The app is open source, hosted on <a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">GitHub</a>. Sync is optional: use the official service or deploy your own Cloudflare Worker (the free tier covers personal use).</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Is there a Windows / Linux / iOS version?</summary>
+      <div class="a"><p>No. CodeVault is a macOS-only menu-bar app (macOS 15+), built deeply on macOS global hotkeys and the Accessibility framework.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>How is this different from Raycast / Alfred snippets?</summary>
+      <div class="a"><p>Launchers treat snippets as a side feature. CodeVault makes information retrieval the core: type system, tags, container layouts, key encryption, and double-click typing are all purpose-built for it — local-first, no plugin dependency.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>How is this different from 1Password / Bitwarden?</summary>
+      <div class="a"><p>Password managers handle credentials only. CodeVault unifies four kinds of high-frequency info (Code / Prompt / Text / Key) with local encryption for Keys — but it's a retrieval tool, not a password manager. Keep using a dedicated manager for browser autofill.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Who is it for?</summary>
+      <div class="a"><p>Anyone who pastes 30+ times a day: indie developers, backend / frontend / DevOps / security engineers — people who pull tokens and connection strings constantly, reuse prompt templates, and fire shell or SQL commands.</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="panel-en">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 6.5a1.8 1.8 0 1 0-1.6-2.8A1.8 1.8 0 0 1 4.5 6.5zM11.5 6.5a1.8 1.8 0 1 0 1.6-2.8 1.8 1.8 0 0 1-1.6 2.8zM4.5 6.5V8c0 3 .9 4.2 3.5 4.2S11.5 11 11.5 8V6.5"/></svg></span>Hotkeys &amp; panel</h2>
+
+    <details class="faqitem" open>
+      <summary>⌘1 does nothing.</summary>
+      <div class="a"><p>Check in order: ① Accessibility granted (visible in Settings); ② the hotkey isn't taken by another app (recording flags conflicts); ③ restart CodeVault right after granting. Full steps in <a href="docs.html#troubleshooting-en">Troubleshooting</a>.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Does the panel work over fullscreen apps?</summary>
+      <div class="a"><p>Yes. The panel runs at a high window level with fullscreen-auxiliary spaces; on multi-monitor setups it appears on the active screen.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Why does double-click sometimes copy and sometimes type?</summary>
+      <div class="a"><p>With “type into field” enabled, double-clicking types only if an editable field was focused before the panel opened; otherwise it copies. You can turn the behavior off in Settings.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Can I change the hotkeys?</summary>
+      <div class="a"><p>Yes — record a new combo in Settings with conflict detection. On some layouts <kbd>⌘</kbd><kbd>⌥</kbd><kbd>K</kbd> collides with “change input source”; switch to something like <kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd>.</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="security-en">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 9.6v1.8"/></svg></span>Data &amp; security</h2>
+
+    <details class="faqitem" open>
+      <summary>Is it safe to keep my tokens in CodeVault?</summary>
+      <div class="a"><p>Sensitive fields in Key items are AES-GCM encrypted at rest; credentials live only in the Keychain. Note that this protects data at rest — it doesn't replace secret rotation. Use FileVault alongside.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Can I use it fully offline?</summary>
+      <div class="a"><p>Yes. Every local feature (vault, quick panel, clipboard history, encryption) works without an account, and local backup export is built in.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Who sees my synced data?</summary>
+      <div class="a"><p>Only the endpoint you configure at sign-in — the official service or your own Cloudflare Worker. The <a href="https://github.com/pekaboo/CodeVault" target="_blank" rel="noopener">code is open source</a> and auditable.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>How do I migrate to a new Mac?</summary>
+      <div class="a"><p>Two ways: ① sign in to the same sync service — the first sync pulls everything back; ② make a local backup on the old machine and import it on the new one.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Is my clipboard history uploaded?</summary>
+      <div class="a"><p>Not by default. Clipboard iCloud sync is a separate opt-in switch (via your own iCloud). Vault sync never includes clipboard history.</p></div>
+    </details>
+  </section>
+
+  <section class="faq-cat" id="sync-en">
+    <h2><span class="cat-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V6h-3.5"/></svg></span>Sync</h2>
+
+    <details class="faqitem" open>
+      <summary>Both devices edited the same item — what happens?</summary>
+      <div class="a"><p>The newer update wins; the older version is overwritten. Transparent rules, no manual merge UI. Details in the <a href="docs.html#sync-en">sync chapter</a>.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>Can deleted items resurrect on another device?</summary>
+      <div class="a"><p>No. Deletes within the last 7 days carry tombstones — deletion takes precedence during sync.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>My token leaked — what now?</summary>
+      <div class="a"><p>Self-hosted: run <code>wrangler secret put SYNC_TOKEN</code> to reset (the old token dies instantly; update all devices). Official service: revoke the token in the portal and generate a new one.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>What's the sync limit?</summary>
+      <div class="a"><p>24 MiB per app (Workers KV value cap). Thousands of text snippets come nowhere near it.</p></div>
+    </details>
+    <details class="faqitem">
+      <summary>How do I run my own sync server?</summary>
+      <div class="a"><p>The backend is a zero-dependency Cloudflare Worker — six commands to deploy. See the <a href="docs.html#self-hosting-en">self-hosting guide</a>.</p></div>
+    </details>
+  </section>
+
+  <div class="still-stuck">
+    <h3>Still stuck?</h3>
+    <p>Open an issue with your macOS version, CodeVault version, and steps to reproduce.</p>
+    <a class="btn-primary" href="https://github.com/pekaboo/CodeVault/issues" target="_blank" rel="noopener">Open an Issue</a>
+  </div>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <span data-l="zh">CodeVault — macOS 菜单栏的高频信息中心</span>
+  <span data-l="en">CodeVault — your high-frequency info hub for the macOS menu bar</span> · <a href="index.html" data-l="zh">首页</a><a href="index.html" data-l="en">Home</a> · <a href="docs.html" data-l="zh">使用指南</a><a href="docs.html" data-l="en">User Guide</a>
+</footer>
+
+<script>
+  var TITLES = {
+    zh: 'CodeVault FAQ — 常见问题',
+    en: 'CodeVault FAQ'
+  };
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('langToggle');
+    function apply(l) {
+      root.setAttribute('data-lang', l);
+      root.setAttribute('lang', l === 'en' ? 'en' : 'zh-CN');
+      document.title = TITLES[l];
+    }
+    apply(root.getAttribute('data-lang') || 'zh');
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-lang') === 'zh' ? 'en' : 'zh';
+      apply(next);
+      try { localStorage.setItem('cv-lang', next); } catch (e) {}
+    });
+  })();
+
+  (function () {
+    var root = document.documentElement, btn = document.getElementById('themeToggle');
+    var saved = null;
+    try { saved = localStorage.getItem('cv-theme'); } catch (e) {}
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('cv-theme', next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>

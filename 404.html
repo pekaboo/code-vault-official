@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // 语言初始化：localStorage > 系统语言（zh* → 中文，否则英文）。
+  (function () {
+    try {
+      var s = localStorage.getItem('cv-lang');
+      var l = (s === 'zh' || s === 'en') ? s
+            : (navigator.language && navigator.language.toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+      document.documentElement.setAttribute('data-lang', l);
+      document.documentElement.setAttribute('lang', l === 'en' ? 'en' : 'zh-CN');
+    } catch (e) {}
+  })();
+</script>
+<title>404 · CodeVault</title>
+<meta http-equiv="refresh" content="3; url=docs.html">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230A84FF'/><text x='50' y='72' font-size='62' font-family='-apple-system,sans-serif' font-weight='800' fill='white' text-anchor='middle'>V</text></svg>">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --accent: #0A84FF; }
+  [data-theme="dark"] {
+    --bg: #1E1E22; --text-primary: #F5F5F7; --text-secondary: rgba(245,245,247,.68); --text-tertiary: rgba(245,245,247,.45);
+    --border: rgba(255,255,255,.08); --border-light: rgba(255,255,255,.16); --hover: rgba(255,255,255,.05);
+  }
+  [data-theme="light"] {
+    --bg: #F5F5F7; --text-primary: #1D1D1F; --text-secondary: rgba(29,29,31,.7); --text-tertiary: rgba(29,29,31,.48);
+    --border: rgba(0,0,0,.09); --border-light: rgba(0,0,0,.16); --hover: rgba(0,0,0,.045);
+  }
+  html[data-lang="zh"] [data-l="en"] { display: none !important; }
+  html[data-lang="en"] [data-l="zh"] { display: none !important; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    -webkit-font-smoothing: antialiased; line-height: 1.7; text-align: center;
+  }
+  .box { padding: 40px 24px; }
+  .code { font-size: 88px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
+    background: linear-gradient(120deg, var(--accent), #A78BFA);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h1 { font-size: 20px; font-weight: 700; margin: 18px 0 8px; }
+  p { color: var(--text-secondary); font-size: 14.5px; max-width: 420px; margin: 0 auto; }
+  .links { display: flex; gap: 12px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600;
+    padding: 9px 18px; border-radius: 10px; text-decoration: none; transition: transform .15s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { border: 1px solid var(--border-light); color: var(--text-primary); }
+  .countdown { color: var(--text-tertiary); font-size: 12.5px; margin-top: 22px; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="code">404</div>
+    <h1><span data-l="zh">这个页面不存在</span><span data-l="en">This page doesn't exist</span></h1>
+    <p><span data-l="zh">链接可能已更新。使用指南已整合为单页手册，正在为你跳转……</span><span data-l="en">The link may have changed. The manual now lives on a single page — redirecting you…</span></p>
+    <div class="links">
+      <a class="btn btn-primary" href="docs.html"><span data-l="zh">前往使用指南</span><span data-l="en">Open the User Guide</span></a>
+      <a class="btn btn-ghost" href="index.html"><span data-l="zh">返回首页</span><span data-l="en">Back home</span></a>
+    </div>
+    <div class="countdown"><span data-l="zh"><span id="s">3</span> 秒后自动跳转</span><span data-l="en">Redirecting in <span id="s2">3</span>s…</span></div>
+  </div>
+  <script>
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('cv-theme'); } catch (e) {}
+      if (saved === 'light' || saved === 'dark') document.documentElement.setAttribute('data-theme', saved);
+      var s = 3, a = document.getElementById('s'), b = document.getElementById('s2');
+      var t = setInterval(function () {
+        s--; a.textContent = s; b.textContent = s;
+        if (s <= 0) { clearInterval(t); location.replace('docs.html'); }
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>
